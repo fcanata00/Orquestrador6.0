@@ -223,6 +223,39 @@ warn()  { local stage="$1" logpath="$2" msg="$3"; _log_write "WARN" "$stage" "$l
 error() { local stage="$1" logpath="$2" msg="$3"; _log_write "ERROR" "$stage" "$logpath" "$$" "$msg"; }
 
 # download helpers
+verify_checksum() {
+    local file="$1"
+    local expected="$2"
+
+    if [ -z "$expected" ]; then
+        log WARN "Nenhum checksum fornecido, pulando verificação."
+        return 0
+    fi
+
+    local algo calc=""
+    case "${#expected}" in
+        32)  algo="md5sum" ;;
+        40)  algo="sha1sum" ;;
+        64)  algo="sha256sum" ;;
+        128) algo="sha512sum" ;;
+        *)   log WARN "Checksum desconhecido (tamanho ${#expected}), assumindo SHA256."
+             algo="sha256sum" ;;
+    esac
+
+    if ! command -v "$algo" >/dev/null 2>&1; then
+        log ERROR "Comando $algo não encontrado, não é possível verificar checksum."
+        return 1
+    fi
+
+    calc=$($algo "$file" | awk '{print $1}')
+    if [ "$calc" = "$expected" ]; then
+        log SUCCESS "Checksum verificado com sucesso usando $algo."
+        return 0
+    else
+        log ERROR "Checksum inválido! Esperado: $expected | Obtido: $calc"
+        return 1
+    fi
+}
 # download-with-progress <stage> <logpath> <url> <dest>
 download-with-progress() {
   local stage="$1" logpath_raw="$2" url="$3" dest="$4"
